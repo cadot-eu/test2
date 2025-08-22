@@ -1,0 +1,107 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '11'
+        
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.13.x'
+        channel: 'stable'
+        cache: true
+        
+    - name: Get Flutter dependencies
+      run: flutter pub get
+      
+    - name: Analyze Flutter code
+      run: flutter analyze
+      
+    - name: Run Flutter tests
+      run: flutter test
+      
+    - name: Generate debug keystore
+      run: |
+        mkdir -p android/
+        keytool -genkey -v -keystore android/debug.keystore \
+          -storepass android -alias androiddebugkey -keypass android \
+          -keyalg RSA -keysize 2048 -validity 10000 \
+          -dname "CN=Android Debug,O=Android,C=US"
+      
+    - name: Build APK
+      run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+      
+    - name: Build App Bundle
+      run: flutter build appbundle --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+      
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-apk
+        path: build/app/outputs/flutter-apk/app-release.apk
+        
+    - name: Upload App Bundle artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-aab
+        path: build/app/outputs/bundle/release/app-release.aab
+        
+    - name: Create Release
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v1.0.${{ github.run_number }}
+        release_name: Release v1.0.${{ github.run_number }}
+        body: |
+          📱 **Note App - Version 1.0.${{ github.run_number }}**
+          
+          Une application de prise de notes en Markdown simple et élégante.
+          
+          ## ✨ Fonctionnalités
+          - ✅ Création et édition de notes en Markdown
+          - 📱 Interface moderne et responsive  
+          - 💾 Stockage local sécurisé
+          - 👁️ Aperçu en temps réel du Markdown
+          - 🔍 Recherche dans les notes
+          - 📊 Statistiques des notes
+          
+          ## 📥 Installation
+          Téléchargez le fichier APK ci-dessous et installez-le sur votre appareil Android.
+          
+          ## ⚠️ Permissions
+          - Stockage : Pour sauvegarder vos notes localement
+          
+          ---
+          Construit automatiquement avec GitHub Actions 🤖
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release APK
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: build/app/outputs/flutter-apk/app-release.apk
+        asset_name: note-app-v1.0.${{ github.run_number }}.apk
+        asset_content_type: application/vnd.android.package-archive
