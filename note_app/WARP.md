@@ -163,6 +163,100 @@ The app is currently French-localized. All user-facing strings are in French, in
 - Automatic icon generation configured in pubspec.yaml
 - GitHub Actions workflow for automated CI/CD builds
 
+## GitHub Actions - Génération Automatique d'APK
+
+Le projet utilise GitHub Actions pour automatiser la génération d'APK et la création de releases.
+
+### Workflow Configuration
+
+**Fichier**: `.github/workflows/build.yml` (à la racine du repository)
+
+**Déclencheurs**:
+- Push sur branches `main` ou `master`
+- Pull requests vers `main` ou `master`  
+- Déclenchement manuel (`workflow_dispatch`)
+
+### Étapes du Build
+
+1. **Setup Environment**
+   - Ubuntu latest runner
+   - Java 11 (Zulu distribution)
+   - Flutter 3.13.x stable avec cache
+
+2. **Quality Checks**
+   ```bash
+   flutter pub get
+   flutter analyze
+   flutter test
+   ```
+
+3. **APK Generation**
+   ```bash
+   # Génère un debug keystore pour signature
+   keytool -genkey -v -keystore android/debug.keystore \
+     -storepass android -alias androiddebugkey -keypass android \
+     -keyalg RSA -keysize 2048 -validity 10000
+   
+   # Build APK et AAB avec versioning automatique
+   flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+   flutter build appbundle --release --build-name=1.0.0 --build-number=${{ github.run_number }}
+   ```
+
+4. **Artifacts & Release**
+   - Upload des artifacts APK et AAB
+   - Création automatique de release sur push vers main/master
+   - Nom de release: `v1.0.${{ github.run_number }}`
+
+### Commandes Utiles
+
+```bash
+# Déclencher manuellement le workflow
+# Via GitHub UI: Actions → Build Flutter APK → Run workflow
+
+# Vérifier le statut des workflows
+gh workflow list
+gh run list
+
+# Télécharger les artifacts générés
+gh run download <run-id>
+```
+
+### Paths des Artifacts Générés
+
+- **APK Release**: `build/app/outputs/flutter-apk/app-release.apk`
+- **App Bundle**: `build/app/outputs/bundle/release/app-release.aab`
+- **Artifact Names**: `release-apk`, `release-aab`
+
+### Versioning Automatique
+
+- **Build Name**: `1.0.0` (fixe)
+- **Build Number**: `${{ github.run_number }}` (auto-incrémenté)
+- **Tag Format**: `v1.0.${{ github.run_number }}`
+
+### Personnaliser le Workflow
+
+**Modifier la version**:
+```yaml
+# Dans build.yml, changer:
+--build-name=1.0.0  # Vers votre version souhaitée
+```
+
+**Ajouter signature de production**:
+1. Créer un keystore de production
+2. Ajouter les secrets GitHub: `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`
+3. Modifier le step de build pour utiliser le keystore prod
+
+**Déploiement Play Store**:
+```yaml
+# Ajouter après le build
+- name: Deploy to Play Store
+  uses: r0adkll/upload-google-play@v1
+  with:
+    serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}
+    packageName: com.yourpackage.noteapp
+    releaseFiles: build/app/outputs/bundle/release/app-release.aab
+```
+
 ## Common Development Tasks
 
 ### Adding New Note Features

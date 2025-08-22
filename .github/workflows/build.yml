@@ -29,15 +29,19 @@ jobs:
         cache: true
         
     - name: Get Flutter dependencies
+      working-directory: ./note_app
       run: flutter pub get
       
     - name: Analyze Flutter code
+      working-directory: ./note_app
       run: flutter analyze
       
     - name: Run Flutter tests
+      working-directory: ./note_app
       run: flutter test
       
     - name: Generate debug keystore
+      working-directory: ./note_app
       run: |
         mkdir -p android/
         keytool -genkey -v -keystore android/debug.keystore \
@@ -46,22 +50,24 @@ jobs:
           -dname "CN=Android Debug,O=Android,C=US"
       
     - name: Build APK
+      working-directory: ./note_app
       run: flutter build apk --release --build-name=1.0.0 --build-number=${{ github.run_number }}
       
     - name: Build App Bundle
+      working-directory: ./note_app
       run: flutter build appbundle --release --build-name=1.0.0 --build-number=${{ github.run_number }}
       
     - name: Upload APK artifact
       uses: actions/upload-artifact@v3
       with:
         name: release-apk
-        path: build/app/outputs/flutter-apk/app-release.apk
+        path: note_app/build/app/outputs/flutter-apk/app-release.apk
         
     - name: Upload App Bundle artifact
       uses: actions/upload-artifact@v3
       with:
         name: release-aab
-        path: build/app/outputs/bundle/release/app-release.aab
+        path: note_app/build/app/outputs/bundle/release/app-release.aab
         
     - name: Create Release
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
@@ -102,6 +108,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: build/app/outputs/flutter-apk/app-release.apk
+        asset_path: note_app/build/app/outputs/flutter-apk/app-release.apk
         asset_name: note-app-v1.0.${{ github.run_number }}.apk
         asset_content_type: application/vnd.android.package-archive
